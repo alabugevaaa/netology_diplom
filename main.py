@@ -1,55 +1,62 @@
 import json
 import os
 import requests
-from datetime import time
+import time
+import math
 
 
 TOKEN = os.getenv('VK_TOKEN')
 V = '5.103'
 
 
-def vk(meth, params, timeout=10):
-    method = {
-        'get_user': 'users.get',
-        'get_friends': 'friends.get',
-        'get_groups': 'groups.get',
-        'get_groupsById': 'groups.getById'
+def vk(meth, id, params, timeout=10):
+    code = {
+        'get_user': 'return API.users.get({"user_ids": "' + str(id) + '"});',
+        'get_friends': 'return API.friends.get({"user_id": "' + str(id) + '"});',
+        'get_groups': 'return API.groups.get({"user_id": "' + str(id) + '"});',
+        'get_groupsById': 'return API.groups.getById({"group_id": "' + str(id) + '", \
+            "extended": "1", "fields": "members_count"});'
     }[meth]
+    params['code'] = code
     try:
         response = requests.get(
-            f'https://api.vk.com/method/{method}',
+            f'https://api.vk.com/method/execute',
             params,
             timeout=timeout
         )
     except requests.exceptions.ReadTimeout:
         print('Read timeout')
-        return vk(meth, params, 20)
+        return vk(meth, id, params, 20)
 
-    print("-")
     data = response.json()
 
     if 'error' in data:
         if data['error']['error_code'] == 6:
             time.sleep(1)
-            return vk(meth, params)
+            return vk(meth, id, params)
         else:
             return data['error']
     return data['response']
 
 
 def write_json(data):
+    print('\rЗапись в файл...', end='')
     with open('result.json', 'w', encoding='utf-8') as f:
         json.dump(data, f, ensure_ascii=False, indent=2)
-    print('Результат записан в файл result.json')
+    print('\rРезультат записан в файл result.json', end='')
+
+def print_progress(bar_len, count, i):
+    d = math.floor(bar_len / count * (i + 1))
+    text = '\r|{0}{1}|'.format('#' * d, '-' * (bar_len - d))
+    print(text, f"Осталось обработать {count - i} друзей", end='')
+    return text
 
 
 class User:
 
     def __init__(self, user='0'):
         self.token = TOKEN
-        params = self.get_params()
-        params['user_ids'] = user
-        response = vk('get_user', params)
+        response = vk('get_user', user, self.get_params())
         if 'error_code' not in response:
             response = response[0]
             self.user_id = response['id']
@@ -78,44 +85,51 @@ class User:
     def get_friends(self, user_id=''):
         if user_id == '':
             user_id = self.user_id
-        params = self.get_params()
-        params['user_id'] = user_id
-        response = vk('get_friends', params)
+        response = vk('get_friends', user_id, self.get_params())
         if 'error_code' not in response:
             return response['items']
         else:
-            print(f"Не удалось получить друзей пользователя  https://vk.com/id{user_id} \
-                  {response['error_msg']}")
             return []
 
     def get_groups(self, user_id=''):
         if user_id == '':
             user_id = self.user_id
-        params = self.get_params()
-        params['user_id'] = user_id
-        response = vk('get_groups', params)
+        response = vk('get_groups', user_id, self.get_params())
         if 'error_code' not in response:
             return response['items']
         else:
-            print(f"Не удалось получить группы пользователя https://vk.com/id{user_id} \
-                              {response['error_msg']}")
             return []
 
-    def get_ind_groups(self):
+    def get_ind_groups(self, n=5):
         groups = set(self.get_groups()[0:1000])
+        set_group = groups
+        common_groups = {}
         if groups:
             friends = self.get_friends()
+            i = 0
             for friend in friends:
                 friends_groups = set(self.get_groups(friend))
-                groups.difference_update(friends_groups)
+                inter_groups = groups & friends_groups
+                for inter_group in inter_groups:
+                    current_gr = common_groups.get(inter_group)
+                    if current_gr is None:
+                        common_groups[inter_group] = 1
+                    else:
+                        current_gr += 1
+
+                set_group.difference_update(friends_groups)
+                for key, value in common_groups.items():
+                    if value < n:
+                        set_group.add(key)
+
+                text = print_progress(50, len(friends), i)
+                i += 1
+            print(text + " Список групп получен")
 
             result_list = []
-            for group in groups:
-                params = self.get_params()
-                params['fields'] = 'members_count'
-                params['group_id'] = group
-                params['extended'] = 1
-                response = vk('get_groupsById', params)
+            print('\rПолучение информации о группах...', end='')
+            for group in set_group:
+                response = vk('get_groupsById', group, self.get_params())
                 if 'error_code' not in response:
                     response = response[0]
                     result = {
@@ -124,9 +138,6 @@ class User:
                         'members_count': response.get('members_count')
                     }
                     result_list.append(result)
-                else:
-                    print(f"Не удалось получить информацию по группе {group} \
-                            {response['error_msg']}")
 
             write_json(result_list)
             return result_list
@@ -134,4 +145,4 @@ class User:
 
 if __name__ == '__main__':
     Evgeniy = User('eshmargunov')
-    groups_user = Evgeniy.get_ind_groups()
+    groups_user = Evgeniy.get_ind_groups(5)

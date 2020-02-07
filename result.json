@@ -1,17 +1,37 @@
 [
   {
+    "name": "Другая Музыка",
+    "gid": 35486626,
+    "members_count": 873019
+  },
+  {
     "name": "Бренд одежды | MEDICINE",
     "gid": 134709480,
-    "members_count": 4424
+    "members_count": 4428
+  },
+  {
+    "name": "Depeche Mode",
+    "gid": 125927592,
+    "members_count": 154559
+  },
+  {
+    "name": "Новые Альбомы",
+    "gid": 4100014,
+    "members_count": 548455
   },
   {
     "name": "E:\\music\\leftfield",
     "gid": 101522128,
-    "members_count": 13687
+    "members_count": 13697
   },
   {
     "name": "Synthpop [Futurepop, Retrowave, Electropop]",
     "gid": 8564,
-    "members_count": 28458
+    "members_count": 28471
+  },
+  {
+    "name": "E:\\music\\trip-hop",
+    "gid": 27683540,
+    "members_count": 90030
   }
 ]
