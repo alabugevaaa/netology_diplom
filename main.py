@@ -115,7 +115,7 @@ class User:
                     if current_gr is None:
                         common_groups[inter_group] = 1
                     else:
-                        current_gr += 1
+                        common_groups[inter_group] += 1
 
                 set_group.difference_update(friends_groups)
                 for key, value in common_groups.items():
