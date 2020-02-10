@@ -10,11 +10,23 @@ V = '5.103'
 
 
 def vk(meth, id, params, timeout=10):
+    text = """
+    var friends=%s;
+    var i=0;
+    var groups = [];
+    while(i < friends.length) {
+        var res = API.groups.get({"user_id": friends[i], "count": "1000"}).items;
+        i = i + 1;
+        groups.push(res);
+    } 
+    return groups;
+    """ % id
+
     code = {
         'get_user': 'return API.users.get({"user_ids": "' + str(id) + '"});',
         'get_friends': 'return API.friends.get({"user_id": "' + str(id) + '"});',
-        'get_groups': 'return API.groups.get({"user_id": "' + str(id) + '"});',
-        'get_groupsById': 'return API.groups.getById({"group_id": "' + str(id) + '", \
+        'get_groups': text,
+        'get_groupsById': 'return API.groups.getById({"group_ids": "' + str(id) + '", \
             "extended": "1", "fields": "members_count"});'
     }[meth]
     params['code'] = code
@@ -91,24 +103,29 @@ class User:
         else:
             return []
 
-    def get_groups(self, user_id=''):
-        if user_id == '':
-            user_id = self.user_id
+    def get_groups(self, user_id=[]):
+        if user_id == []:
+            user_id.append(self.user_id)
         response = vk('get_groups', user_id, self.get_params())
+        result = set()
         if 'error_code' not in response:
-            return response['items']
-        else:
-            return []
+            for resp in response:
+                if resp is None:
+                    continue
+                for r in resp:
+                    result.add(r)
+        return result
 
     def get_ind_groups(self, n=5):
-        groups = set(self.get_groups()[0:1000])
+        groups = self.get_groups()
         set_group = groups
         common_groups = {}
         if groups:
             friends = self.get_friends()
-            i = 0
-            for friend in friends:
-                friends_groups = set(self.get_groups(friend))
+            progress_i = 0
+            friends_split = [friends[i:i + 25] for i in range(0, len(friends), 25)]
+            for friend in friends_split:
+                friends_groups = self.get_groups(friend)
                 inter_groups = groups & friends_groups
                 for inter_group in inter_groups:
                     current_gr = common_groups.get(inter_group)
@@ -122,20 +139,19 @@ class User:
                     if value < n:
                         set_group.add(key)
 
-                text = print_progress(50, len(friends), i)
-                i += 1
+                progress_i += len(friend)
+                text = print_progress(50, len(friends), progress_i)
             print(text + " Список групп получен")
 
             result_list = []
             print('\rПолучение информации о группах...', end='')
-            for group in set_group:
-                response = vk('get_groupsById', group, self.get_params())
-                if 'error_code' not in response:
-                    response = response[0]
+            response = vk('get_groupsById', set_group, self.get_params())
+            if 'error_code' not in response:
+                for resp in response:
                     result = {
-                        'name': response.get('name'),
-                        'gid': response.get('id'),
-                        'members_count': response.get('members_count')
+                        'name': resp.get('name'),
+                        'gid': resp.get('id'),
+                        'members_count': resp.get('members_count')
                     }
                     result_list.append(result)
 
